@@ -104,7 +104,7 @@ namespace QvPen.UdonScript
                 // OnOwnershipTransferred は呼ばれないため、
                 // ここで手動でタスクを開始する
                 Log("Sync owner is the same as the new sync owner. Starting sync.");
-                SyncWorker.StartSync();
+                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync));
             }
             else
             {
