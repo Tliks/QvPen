@@ -39,11 +39,17 @@ namespace QvPen.UdonScript
 
         private bool forceStart = false;
 
+        public override void OnOwnershipTransferred(VRCPlayerApi player)
+        {
+            var localPlayer = Networking.LocalPlayer;
+            if (player == localPlayer && SyncManager.SyncOwnerId == localPlayer.playerId && Networking.IsOwner(gameObject))
+            {
+                StartSync();
+            }
+        }
+
         public void StartSync()
         {
-            if (!Networking.IsOwner(gameObject))
-                return;
-
             forceStart = true;
             retryCount = 0;
 
@@ -66,7 +72,7 @@ namespace QvPen.UdonScript
                 }
                 else
                 {
-                    if (SyncManager.Synced())
+                    if (SyncManager.Synced(Networking.LocalPlayer.playerId))
                         return;
 
                     _syncedData = value;
@@ -265,7 +271,7 @@ namespace QvPen.UdonScript
                 {
                     if (currentSyncState == QvPen_Pen_SyncState.Started)
                         pen.currentSyncState = QvPen_Pen_SyncState.Finished;
-                    SyncManager.OnSynced();
+                    SyncManager.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSyncManager.OnSynced));
                 }
                 else if (data.Length > 2)
                 {
