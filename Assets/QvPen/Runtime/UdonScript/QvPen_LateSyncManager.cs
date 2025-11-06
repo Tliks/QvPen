@@ -60,10 +60,10 @@ namespace QvPen.UdonScript
                 return;
             }
 
-            if (syncOwnerId != -1) // 進行中
+            if (syncOwnerId != -1 && Networking.GetOwner(SyncWorker.gameObject).playerId == syncOwnerId) // 進行中
             {
                 Log("Already in progress. Restarting sync.");
-                SyncWorker.StartSync(); // 新規プレイヤーが入ってきたときは再始動
+                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync)); // 新規プレイヤーが入ってきたときは再始動
             }
             else // 新規タスク
             {
