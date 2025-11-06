@@ -3,6 +3,7 @@ using UnityEngine;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 using VRC.Udon.Common;
+using VRC.Udon.Common.Interfaces;
 using Utilities = VRC.SDKBase.Utilities;
 
 #pragma warning disable IDE0090, IDE1006
@@ -14,6 +15,7 @@ namespace QvPen.UdonScript
     public class QvPen_LateSync : UdonSharpBehaviour
     {
         public QvPen_Pen pen { get; set; }
+        public QvPen_LateSyncManager SyncManager { get; set; }
 
         [SerializeField]
         private Transform inkPoolSynced;
@@ -26,17 +28,6 @@ namespace QvPen.UdonScript
         private LineRenderer[] linesBuffer = { };
         private int inkIndex = -1;
 
-        public override void OnPlayerJoined(VRCPlayerApi player)
-        {
-            if (VRCPlayerApi.GetPlayerCount() > 1 && Networking.IsOwner(gameObject))
-                StartSync();
-        }
-
-        public override void OnOwnershipTransferred(VRCPlayerApi player)
-        {
-            if (VRCPlayerApi.GetPlayerCount() > 1 && Networking.IsOwner(gameObject))
-                SendCustomEventDelayedSeconds(nameof(StartSync), 1.84f * (1f + Random.value));
-        }
 
         #region Footer
 
@@ -50,6 +41,9 @@ namespace QvPen.UdonScript
 
         public void StartSync()
         {
+            if (!Networking.IsOwner(gameObject))
+                return;
+
             forceStart = true;
             retryCount = 0;
 
@@ -72,6 +66,9 @@ namespace QvPen.UdonScript
                 }
                 else
                 {
+                    if (SyncManager.Synced())
+                        return;
+
                     _syncedData = value;
 
                     if (Networking.IsOwner(gameObject))
@@ -150,6 +147,8 @@ namespace QvPen.UdonScript
 
                     syncedData = new Vector3[] { };
                     isInUseSyncBuffer = false;
+
+                    SyncManager.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSyncManager.OnTaskFinished));
 
                     return;
                 }
@@ -266,6 +265,7 @@ namespace QvPen.UdonScript
                 {
                     if (currentSyncState == QvPen_Pen_SyncState.Started)
                         pen.currentSyncState = QvPen_Pen_SyncState.Finished;
+                    SyncManager.OnSynced();
                 }
                 else if (data.Length > 2)
                 {

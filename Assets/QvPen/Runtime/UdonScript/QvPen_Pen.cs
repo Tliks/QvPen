@@ -42,6 +42,8 @@ namespace QvPen.UdonScript
 
         [SerializeField]
         private QvPen_LateSync syncer;
+        [SerializeField]
+        private QvPen_LateSyncManager syncManager;
 
         [Header("Pointer")]
         [SerializeField]
@@ -227,6 +229,8 @@ namespace QvPen.UdonScript
             manager.Register(penId, this);
 
             syncer.pen = this;
+            syncer.SyncManager = syncManager;
+            // syncManager.SyncWorker = syncer;
 
             inkPoolSynced = syncer.InkPoolSynced;
             inkPoolNotSynced = syncer.InkPoolNotSynced;
