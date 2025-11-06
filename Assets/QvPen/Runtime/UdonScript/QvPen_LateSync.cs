@@ -28,6 +28,14 @@ namespace QvPen.UdonScript
         private LineRenderer[] linesBuffer = { };
         private int inkIndex = -1;
 
+        public override void OnOwnershipTransferred(VRCPlayerApi player)
+        {
+            var localPlayer = Networking.LocalPlayer;
+            if (VRCPlayerApi.GetPlayerCount() > 1 && player == localPlayer && SyncManager.SyncOwnerId == localPlayer.playerId && Networking.IsOwner(gameObject))
+            {
+                SendCustomEventDelayedSeconds(nameof(StartSync), 1.84f * (1f + Random.value));
+            }
+        }
 
         #region Footer
 
@@ -38,15 +46,6 @@ namespace QvPen.UdonScript
         #endregion
 
         private bool forceStart = false;
-
-        public override void OnOwnershipTransferred(VRCPlayerApi player)
-        {
-            var localPlayer = Networking.LocalPlayer;
-            if (player == localPlayer && SyncManager.SyncOwnerId == localPlayer.playerId && Networking.IsOwner(gameObject))
-            {
-                StartSync();
-            }
-        }
 
         public void StartSync()
         {
