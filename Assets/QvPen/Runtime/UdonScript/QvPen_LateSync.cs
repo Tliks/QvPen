@@ -95,7 +95,7 @@ namespace QvPen.UdonScript
         {
             if (VRCPlayerApi.GetPlayerCount() > 1 && Networking.IsOwner(gameObject))
             {
-                if (!isNetworkSettled)
+                if (!isNetworkSettled || Networking.IsClogged)
                 {
                     SendCustomEventDelayedSeconds(nameof(_RequestSendPackage), 1.84f);
                     return;
