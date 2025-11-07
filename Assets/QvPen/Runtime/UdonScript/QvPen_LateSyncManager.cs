@@ -78,24 +78,25 @@ namespace QvPen.UdonScript
             if (VRCPlayerApi.GetPlayerCount() < 2)
                 return;
 
+            var delay = Random.Range(0f, 1.84f);
             if (syncOwnerId == -1) // 新規タスク
             {
                 Log("OnPlayerJoined. New task. Appointing new sync owner.");
-                AppointNewSyncOwnerAndStartSync();
+                AppointNewSyncOwnerAndStartSync(delay);
             }
             else if (Networking.GetOwner(SyncWorker.gameObject).playerId != syncOwnerId) // 不当なSyncOwner
             {
                 Error("OnPlayerJoined. Unauthorized sync owner. Appointing new sync owner and starting sync.");
-                AppointNewSyncOwnerAndStartSync();
+                AppointNewSyncOwnerAndStartSync(delay);
             }
             else // 進行中
             {
                 Log("OnPlayerJoined. Syncing is already in progress. Restarting sync.");
-                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync));
+                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync), delay);
             }
         }
 
-        public void AppointNewSyncOwnerAndStartSync()
+        public void AppointNewSyncOwnerAndStartSync(float delay)
         {
             VRCPlayerApi newSyncOwner = null;
             
@@ -121,8 +122,7 @@ namespace QvPen.UdonScript
                 return;
 
             syncOwnerId = newSyncOwner.playerId;
-
-            SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.All, nameof(QvPen_LateSync.StartSyncForPlayer), syncOwnerId);
+            SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.All, nameof(QvPen_LateSync.StartSyncForPlayer), syncOwnerId, delay);
         }
 
         private bool _isNetworkSettled = false;
@@ -206,7 +206,8 @@ namespace QvPen.UdonScript
             if (syncOwnerId == player.playerId && VRCPlayerApi.GetPlayerCount() > 1)
             {
                 Log("OnPlayerLeft. Sync owner left during syncing. Appointing new sync owner and starting sync.");
-                AppointNewSyncOwnerAndStartSync();
+                var delay = Random.Range(0f, 1.84f);
+                AppointNewSyncOwnerAndStartSync(delay);
             }
 
             // https://creators.vrchat.com/worlds/udon/networking/ownership/

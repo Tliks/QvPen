@@ -40,7 +40,7 @@ namespace QvPen.UdonScript
         private bool forceStart = false;
 
         [NetworkCallable]
-        public void StartSyncForPlayer(int playerId)
+        public void StartSyncForPlayer(int playerId, float delay)
         {
             var localPlayer = Networking.LocalPlayer;
             if (playerId != localPlayer.playerId)
@@ -49,10 +49,16 @@ namespace QvPen.UdonScript
             if (Networking.GetOwner(gameObject).playerId != localPlayer.playerId)
                 Networking.SetOwner(localPlayer, gameObject);
             
-            StartSync(); // 遅延させなくてもいいらしい。
+            SendCustomEventDelayedSeconds(nameof(StartImpl), delay); // Ownerの変更による遅延はいらないらしい
         }
 
-        public void StartSync()
+        [NetworkCallable]
+        public void StartSync(float delay)
+        {
+            SendCustomEventDelayedSeconds(nameof(StartImpl), delay);
+        }
+
+        public void StartImpl()
         {
             forceStart = true;
             retryCount = 0;
