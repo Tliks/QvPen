@@ -3,6 +3,7 @@ using UnityEngine;
 using VRC.SDK3.Data;
 using VRC.SDK3.UdonNetworkCalling;
 using VRC.SDKBase;
+using VRC.Udon.Common;
 using VRC.Udon.Common.Interfaces;
 using Utilities = VRC.SDKBase.Utilities;
 
@@ -29,11 +30,34 @@ namespace QvPen.UdonScript
         }
 
         [UdonSynced]
-        private int[] syncedPlayerIds = new int[0];
+        private int[] _syncedPlayerIds = new int[0];
+        private int[] syncedPlayerIds
+        {
+            get => _syncedPlayerIds;
+            set
+            {
+                _syncedPlayerIds = value;
+                if (Networking.IsOwner(gameObject))
+                    _RequestSendPackage();
+                else
+                    Error("SyncedPlayerIds is set from non-owner. ");
+            }
+        }
 
         [UdonSynced]
-        private int syncOwnerId = -1; // -1: 待機状態
-        public int SyncOwnerId => syncOwnerId;
+        private int _syncOwnerId = -1; // -1: 待機状態
+        private int syncOwnerId
+        {
+            get => _syncOwnerId;
+            set
+            {
+                _syncOwnerId = value;
+                if (Networking.IsOwner(gameObject))
+                    _RequestSendPackage();
+                else
+                    Error("SyncOwnerId is set from non-owner. ");
+            }
+        }
         
         public bool Synced(int playerId)
         {
@@ -48,31 +72,30 @@ namespace QvPen.UdonScript
         public override void OnPlayerJoined(VRCPlayerApi player)
         {
             // 管理タスクはObjectOwnerのみ
-            if (!Networking.IsOwner(SyncWorker.gameObject))
-            {
-                Log("Not the ObjectOwner.");
+            if (!Networking.IsOwner(gameObject))
                 return;
-            }
 
             if (VRCPlayerApi.GetPlayerCount() < 2)
-            {
-                Log("Player count is less than 2.");
                 return;
-            }
 
-            if (syncOwnerId != -1 && Networking.GetOwner(SyncWorker.gameObject).playerId == syncOwnerId) // 進行中
+            if (syncOwnerId == -1) // 新規タスク
             {
-                Log("Already in progress. Restarting sync.");
-                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync)); // 新規プレイヤーが入ってきたときは再始動
+                Log("OnPlayerJoined. New task. Appointing new sync owner.");
+                AppointNewSyncOwnerAndStartSync();
             }
-            else // 新規タスク
+            else if (Networking.GetOwner(SyncWorker.gameObject).playerId != syncOwnerId) // 不当なSyncOwner
             {
-                Log("New task. Appointing new sync owner.");
-                AppointNewSyncOwnerAndStart();
+                Error("OnPlayerJoined. Unauthorized sync owner. Appointing new sync owner and starting sync.");
+                AppointNewSyncOwnerAndStartSync();
+            }
+            else // 進行中
+            {
+                Log("OnPlayerJoined. Syncing is already in progress. Restarting sync.");
+                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync));
             }
         }
 
-        public void AppointNewSyncOwnerAndStart()
+        public void AppointNewSyncOwnerAndStartSync()
         {
             VRCPlayerApi newSyncOwner = null;
             
@@ -90,50 +113,73 @@ namespace QvPen.UdonScript
 
             if (!Utilities.IsValid(newSyncOwner))
             {
-                Log("No valid sync owner found. Using local player.");
+                Log("AppointNewSyncOwnerAndStart. No valid sync owner found. Using local player.");
                 newSyncOwner = Networking.LocalPlayer; // Masterにしたい
             }
 
-            Log("New sync owner: " + newSyncOwner.displayName);
-            syncOwnerId = newSyncOwner.playerId;
-            RequestSerialization();
+            if (syncOwnerId == newSyncOwner.playerId)
+                return;
 
-            if (Networking.GetOwner(SyncWorker.gameObject) == newSyncOwner)
+            syncOwnerId = newSyncOwner.playerId;
+
+            SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.All, nameof(QvPen_LateSync.StartSyncForPlayer), syncOwnerId);
+        }
+
+        private bool _isNetworkSettled = false;
+        private bool isNetworkSettled
+            => _isNetworkSettled || (_isNetworkSettled = Networking.IsNetworkSettled);
+
+        private bool isInUseSyncBuffer = false;
+        public void _RequestSendPackage()
+        {
+            if (VRCPlayerApi.GetPlayerCount() > 1 && Networking.IsOwner(gameObject))
             {
-                // 任命されたのが「現在のオーナー」だった場合
-                // OnOwnershipTransferred は呼ばれないため、
-                // ここで手動でタスクを開始する
-                Log("Sync owner is the same as the new sync owner. Starting sync.");
-                SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(QvPen_LateSync.StartSync));
+                if (!isNetworkSettled)
+                {
+                    SendCustomEventDelayedSeconds(nameof(_RequestSendPackage), 1.84f);
+                    return;
+                }
+
+                isInUseSyncBuffer = true;
+                RequestSerialization();
+            }
+        }
+
+        private const int maxRetryCount = 3;
+        private int retryCount = 0;
+        public override void OnPostSerialization(SerializationResult result)
+        {
+            isInUseSyncBuffer = false;
+
+            if (!result.success)
+            {
+                if (retryCount++ < maxRetryCount)
+                    SendCustomEventDelayedSeconds(nameof(_RequestSendPackage), 1.84f);
             }
             else
             {
-                // 任命されたのが別プレイヤーの場合
-                // オーナー権限を移譲する（相手側で OnOwnershipTransferred が呼ばれる）
-                Log("Sync owner is not the same as the new sync owner. Transferring ownership to " + newSyncOwner.displayName);
-                Networking.SetOwner(newSyncOwner, SyncWorker.gameObject);
-            }     
+                retryCount = 0;
+            }
         }
 
         [NetworkCallable]
         public void OnTaskFinished()
         {
-            Log("Reported task finished.");
+            Log("OnTaskFinished. Reported task finished.");
             if (!Networking.IsOwner(gameObject)) // Ownerのみ呼ばれるはずだけど念のため
                 return;
 
             if (NetworkCalling.CallingPlayer.playerId == syncOwnerId)
             {
                 syncOwnerId = -1; // 待機状態に戻す
-                RequestSerialization();
-                Log("Sync owner is now waiting.");
+                Log("OnTaskFinished. Sync owner is now waiting.");
             }
         }
 
         [NetworkCallable]
         public void OnSynced()
         {
-            Log("Reported synced.");
+            Log("OnSynced. Reported synced.");
             if (!Networking.IsOwner(gameObject)) // Ownerのみ呼ばれるはずだけど念のため
                 return;
 
@@ -147,8 +193,6 @@ namespace QvPen.UdonScript
             syncedPlayerIds.CopyTo(newList, 0);
             newList[syncedPlayerIds.Length] = newSyncedPlayerId;
             syncedPlayerIds = newList;
-
-            RequestSerialization();
         }
 
         public override void OnPlayerLeft(VRCPlayerApi player)
@@ -158,17 +202,20 @@ namespace QvPen.UdonScript
 
             // playerIDは一意なので、syncedPlayerIdsから削除する必要はない
 
-            // SyncOwnerが退出した場合は、新しいSyncOwnerを任命する
-            if (syncOwnerId == player.playerId)
+            // SyncOwnerが同期中に同期中に退出した場合は、新しいSyncOwnerを任命する
+            if (_syncOwnerId == player.playerId && VRCPlayerApi.GetPlayerCount() > 1)
             {
-                Log("Sync owner left. Appointing new sync owner and starting sync.");
-                AppointNewSyncOwnerAndStart();
+                Log("OnPlayerLeft. Sync owner left during syncing. Appointing new sync owner and starting sync.");
+                AppointNewSyncOwnerAndStartSync();
             }
+
+            // https://creators.vrchat.com/worlds/udon/networking/ownership/
+            // Masterが抜ける場合は次のMasterが任命されてからOnPlayerLeftが呼ばれるので、SyncOwnerを兼ねている場合でも上のコードで他の人へタスクが移る
         }
 
         #region Log
 
-        private const string appName = nameof(QvPen_LateSync);
+        private const string appName = nameof(QvPen_LateSyncManager);
 
         private void Log(object o) => Debug.Log($"{logPrefix}{o}", this);
         private void Warning(object o) => Debug.LogWarning($"{logPrefix}{o}", this);

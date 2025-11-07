@@ -1,6 +1,7 @@
 ﻿using UdonSharp;
 using UnityEngine;
 using VRC.SDK3.Data;
+using VRC.SDK3.UdonNetworkCalling;
 using VRC.SDKBase;
 using VRC.Udon.Common;
 using VRC.Udon.Common.Interfaces;
@@ -28,15 +29,6 @@ namespace QvPen.UdonScript
         private LineRenderer[] linesBuffer = { };
         private int inkIndex = -1;
 
-        public override void OnOwnershipTransferred(VRCPlayerApi player)
-        {
-            var localPlayer = Networking.LocalPlayer;
-            if (VRCPlayerApi.GetPlayerCount() > 1 && player == localPlayer && SyncManager.SyncOwnerId == localPlayer.playerId && Networking.IsOwner(gameObject))
-            {
-                SendCustomEventDelayedSeconds(nameof(StartSync), 1.84f * (1f + Random.value));
-            }
-        }
-
         #region Footer
 
         // Footer element
@@ -47,6 +39,24 @@ namespace QvPen.UdonScript
 
         private bool forceStart = false;
 
+        [NetworkCallable]
+        public void StartSyncForPlayer(int playerId)
+        {
+            var localPlayer = Networking.LocalPlayer;
+            if (playerId != localPlayer.playerId)
+            {
+                Log($"StartSyncForPlayer: playerId != localPlayer.playerId: {playerId} != {localPlayer.playerId}");
+                return;
+            }
+
+            if (Networking.GetOwner(gameObject).playerId != localPlayer.playerId)
+            {
+                Networking.SetOwner(localPlayer, gameObject);
+            }
+            
+            StartSync(); // 遅延させなくてもいいらしい。
+        }
+
         public void StartSync()
         {
             forceStart = true;
@@ -56,7 +66,7 @@ namespace QvPen.UdonScript
         }
 
         [UdonSynced]
-        private Vector3[] _syncedData;
+        private Vector3[] _syncedData = new Vector3[0];
         private Vector3[] syncedData
         {
             get => _syncedData;
@@ -71,9 +81,6 @@ namespace QvPen.UdonScript
                 }
                 else
                 {
-                    if (SyncManager.Synced(Networking.LocalPlayer.playerId))
-                        return;
-
                     _syncedData = value;
 
                     if (Networking.IsOwner(gameObject))
