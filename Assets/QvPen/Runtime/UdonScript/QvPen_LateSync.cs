@@ -44,15 +44,10 @@ namespace QvPen.UdonScript
         {
             var localPlayer = Networking.LocalPlayer;
             if (playerId != localPlayer.playerId)
-            {
-                Log($"StartSyncForPlayer: playerId != localPlayer.playerId: {playerId} != {localPlayer.playerId}");
                 return;
-            }
 
             if (Networking.GetOwner(gameObject).playerId != localPlayer.playerId)
-            {
                 Networking.SetOwner(localPlayer, gameObject);
-            }
             
             StartSync(); // 遅延させなくてもいいらしい。
         }
@@ -66,7 +61,7 @@ namespace QvPen.UdonScript
         }
 
         [UdonSynced]
-        private Vector3[] _syncedData = new Vector3[0];
+        private Vector3[] _syncedData;
         private Vector3[] syncedData
         {
             get => _syncedData;

@@ -203,7 +203,7 @@ namespace QvPen.UdonScript
             // playerIDは一意なので、syncedPlayerIdsから削除する必要はない
 
             // SyncOwnerが同期中に同期中に退出した場合は、新しいSyncOwnerを任命する
-            if (_syncOwnerId == player.playerId && VRCPlayerApi.GetPlayerCount() > 1)
+            if (syncOwnerId == player.playerId && VRCPlayerApi.GetPlayerCount() > 1)
             {
                 Log("OnPlayerLeft. Sync owner left during syncing. Appointing new sync owner and starting sync.");
                 AppointNewSyncOwnerAndStartSync();
