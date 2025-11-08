@@ -32,7 +32,7 @@ namespace QvPen.UdonScript
         }
 
         [UdonSynced]
-        private int[] _syncedPlayerIds = new int[0];
+        private int[] _syncedPlayerIds = new int[] { 1 }; // 一番最初のプレイヤーは同期データを持っている
         private int[] syncedPlayerIds
         {
             get => _syncedPlayerIds;
