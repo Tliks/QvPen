@@ -7,6 +7,8 @@ using VRC.Udon.Common;
 using VRC.Udon.Common.Interfaces;
 using Utilities = VRC.SDKBase.Utilities;
 
+#pragma warning disable IDE0090, IDE1006
+
 namespace QvPen.UdonScript
 {
     // ObjectOwnerはMaster
