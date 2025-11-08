@@ -120,10 +120,10 @@ namespace QvPen.UdonScript
                 newSyncOwner = Networking.LocalPlayer; // Masterにしたい
             }
 
-            if (syncOwnerId == newSyncOwner.playerId)
-                return;
+            if (syncOwnerId != newSyncOwner.playerId) {
+                syncOwnerId = newSyncOwner.playerId;
+            }
 
-            syncOwnerId = newSyncOwner.playerId;
             SyncWorker.SendCustomNetworkEvent(NetworkEventTarget.All, nameof(QvPen_LateSync.StartSyncForPlayer), syncOwnerId, delay);
         }
 
